@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/SpiritSync.RawSqlGenerator/">
+    <Project Path="src/SpiritSync.RawSqlGenerator/SpiritSync.RawSqlGenerator.csproj" />
+  </Folder>
+</Solution>
