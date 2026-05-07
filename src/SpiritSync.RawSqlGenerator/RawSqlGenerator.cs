@@ -562,9 +562,14 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
 
             // Evaluate compile-time constants if possible
             var constantValue = model.GetConstantValue(expr, token);
-            if (constantValue is { HasValue: true, Value: string s })
+            if (constantValue.HasValue)
             {
-                value = s;
+                value = constantValue.Value switch
+                {
+                    string s => s,
+                    char c => c.ToString(),
+                    _ => constantValue.Value?.ToString() ?? "",
+                };
                 return true;
             }
 
@@ -609,9 +614,14 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
         {
             // Evaluate compile-time constants if possible
             var constantValue = model.GetConstantValue(expr, token);
-            if (constantValue is { HasValue: true, Value: string s })
+            if (constantValue.HasValue)
             {
-                value = s;
+                value = constantValue.Value switch
+                {
+                    string s => s,
+                    char c => c.ToString(),
+                    _ => constantValue.Value?.ToString() ?? "",
+                };
                 return true;
             }
         }
