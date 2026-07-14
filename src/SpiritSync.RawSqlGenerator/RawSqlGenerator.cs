@@ -9,10 +9,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 // ReSharper disable ConvertIfStatementToSwitchStatement
 
-namespace RawSqlGen;
+namespace SpiritSync.Generators;
 
-public record EvalSyntaxRecord(string FilePath, int MethodStart, int MethodLength, EquatableArray<(int Start, int Length)> AttributeSpans);
-public record RawSqlInstance(string VariableName, string ConstantName, Location Location);
+internal record EvalSyntaxRecord(string FilePath, int MethodStart, int MethodLength, EquatableArray<(int Start, int Length)> AttributeSpans);
+internal record RawSqlInstance(string VariableName, string ConstantName, Location Location);
 
 [Generator(LanguageNames.CSharp)]
 public sealed class RawSqlGenerator : IIncrementalGenerator
@@ -72,7 +72,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
             ctx.AddSource("RawSqlAttribute.g.cs", """
                 // ReSharper disable RedundantNameQualifier
                 #nullable enable
-                namespace RawSqlGen;
+                namespace SpiritSync.Generators;
 
                 [global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]
                 public sealed class RawSqlAttribute : global::System.Attribute
@@ -96,7 +96,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
                 """);
         });
 
-        var methods = context.SyntaxProvider.ForAttributeWithMetadataName("RawSqlGen.RawSqlAttribute",
+        var methods = context.SyntaxProvider.ForAttributeWithMetadataName("SpiritSync.Generators.RawSqlAttribute",
             predicate: static (n, _) => n is MethodDeclarationSyntax,
             transform: static (ctx, _) =>
                 {
@@ -105,7 +105,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
                     var attrs = method.AttributeLists
                         .SelectMany(static list => list.Attributes)
                         .Where(a => sm.GetSymbolInfo(a).Symbol is IMethodSymbol ms &&
-                            ms.ContainingType.ToDisplayString() == "RawSqlGen.RawSqlAttribute")
+                            ms.ContainingType.ToDisplayString() == "SpiritSync.Generators.RawSqlAttribute")
                         .ToList();
 
                     if (attrs.Count == 0) return null;
@@ -135,9 +135,11 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
             if (rec is null) continue;
             var (filePath, methodStart, methodLength, attrSpanInfos) = rec;
             var tree = compilation.SyntaxTrees.FirstOrDefault(t => t.FilePath == filePath);
+            if (tree is null) continue;
 
-            var root = tree?.GetRoot();
-            if (root?.FindNode(new Microsoft.CodeAnalysis.Text.TextSpan(methodStart, methodLength)) is not MethodDeclarationSyntax method) continue;
+            var root = tree.GetRoot();
+            var method = root.FindNode(new Microsoft.CodeAnalysis.Text.TextSpan(methodStart, methodLength)) as MethodDeclarationSyntax;
+            if (method is null) continue;
 
             var model = compilation.GetSemanticModel(method.SyntaxTree);
             if (method.Parent is not ClassDeclarationSyntax { } classDecl) continue;
@@ -206,9 +208,10 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
                                             else if (content is InterpolationSyntax interpolation)
                                             {
                                                 var text = SafeGetTextValue(interpolation.Expression, model, compilation, out _);
-                                                sb.Append(!string.IsNullOrEmpty(text)
-                                                    ? text
-                                                    : $"{{{interpolation.Expression.ToFullString().Trim()}}}");
+                                                if (!string.IsNullOrEmpty(text))
+                                                    sb.Append(text);
+                                                else
+                                                    sb.Append($"{{{interpolation.Expression.ToFullString().Trim()}}}");
                                             }
                                         }
 
@@ -314,7 +317,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
             filePath = System.Security.SecurityElement.Escape(filePath);
 
             const string indent = "        "; // 8
-            
+
             Append(sb, ref lineCount,$"{indent}/// <summary>");
             Append(sb, ref lineCount,$"{indent}/// <para>");
             Append(sb, ref lineCount,$"{indent}/// Computed value from interpolated string.");
@@ -342,7 +345,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
             continue;
 
             // This local function is needed to ensure the line numbers of any unresolved interpolations are accurate.
-            static void Append(StringBuilder sb, ref int lineCount, string v) { sb.AppendLine(v); lineCount++; } 
+            static void Append(StringBuilder sb, ref int lineCount, string v) { sb.AppendLine(v); lineCount++; }
         }
 
         sb.AppendLine("    }");
@@ -403,7 +406,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
         var sb = new StringBuilder();
         foreach (var line in lines)
         {
-            var trimmed = line.Length <= minIndent ? string.Empty : line.Substring(minIndent);
+            var trimmed = line.Length <= minIndent ? string.Empty : line[minIndent..];
             sb.Append(GeneratedIndent);
             sb.AppendLine(trimmed);
         }
@@ -416,10 +419,6 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
     // Expression evaluation with support for nameof() and evaluating simple helper methods in-source
     // --------------------------------------------------
 
-    // TODO: Add a warning that registers if an interpolated value in the attributed method
-    //       references a static method that has more than 1 return statement (not counting any local functions it may have).
-    //       We do not plan to support if/else blocks in the injection methods for now.
- 
     private static bool TryEvaluateSqlExpression(
         in SourceProductionContext context,
         ExpressionSyntax expr,
@@ -458,15 +457,24 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
         // Ternary operators
         if (expr is ConditionalExpressionSyntax cond)
         {
-            if (!TryEvaluateSqlExpression(context, cond.Condition, model, out var condVal, token, currentIndent, parameterMap))
+            if (!TryEvaluateCondition(context, cond.Condition, model, out var condBool, token, parameterMap))
                 return false;
 
-            var truthy = bool.TryParse(condVal, out var condBool) && condBool;
-            var chosen = truthy ? cond.WhenTrue : cond.WhenFalse;
+            var chosen = condBool ? cond.WhenTrue : cond.WhenFalse;
             if (!TryEvaluateSqlExpression(context, chosen, model, out var condEvalVal, token, currentIndent, parameterMap))
                 return false;
 
             value = condEvalVal;
+            return true;
+        }
+
+        // Pattern-matching expressions, e.g. `x is not null`, `x is null`, `x is { Length: > 0 }`.
+        if (expr is IsPatternExpressionSyntax isPattern)
+        {
+            if (!TryEvaluateIsPattern(context, isPattern, model, out var patternBool, token, parameterMap))
+                return false;
+
+            value = patternBool ? "true" : "false";
             return true;
         }
 
@@ -882,6 +890,123 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
         return null;
     }
 
+    /// <summary>
+    /// Evaluates a boolean condition expression, handling both ordinary boolean expressions
+    /// (by delegating to <see cref="TryEvaluateSqlExpression"/>) and pattern-matching
+    /// expressions such as <c>x is not null</c> or <c>x is null</c>.
+    /// </summary>
+    private static bool TryEvaluateCondition(
+        in SourceProductionContext context,
+        ExpressionSyntax condExpr,
+        SemanticModel model,
+        out bool result,
+        CancellationToken token,
+        Dictionary<string, string>? parameterMap)
+    {
+        result = false;
+
+        if (condExpr is IsPatternExpressionSyntax isPattern)
+            return TryEvaluateIsPattern(context, isPattern, model, out result, token, parameterMap);
+
+        if (!TryEvaluateSqlExpression(context, condExpr, model, out var condVal, token, 0, parameterMap))
+            return false;
+
+        result = bool.TryParse(condVal, out var b) ? b : condVal is not ("0" or "" or "null");
+        return true;
+    }
+
+    /// <summary>
+    /// Evaluates an <c>is</c>-pattern expression such as <c>x is not null</c>, <c>x is null</c>,
+    /// or a property-pattern like <c>x is { Length: > 0 }</c> against the current parameter map.
+    /// </summary>
+    private static bool TryEvaluateIsPattern(
+        in SourceProductionContext context,
+        IsPatternExpressionSyntax isPattern,
+        SemanticModel model,
+        out bool result,
+        CancellationToken token,
+        Dictionary<string, string>? parameterMap)
+    {
+        result = false;
+
+        // Resolve the left-hand side value (may be null if the identifier maps to "null" or is absent).
+        TryEvaluateSqlExpression(context, isPattern.Expression, model, out var lhsValue, token, 0, parameterMap);
+
+        return TryMatchPattern(isPattern.Pattern, lhsValue, out result);
+
+        static bool TryMatchPattern(PatternSyntax pattern, string? lhsValue, out bool matched)
+        {
+            matched = false;
+
+            switch (pattern)
+            {
+                // x is null
+                case ConstantPatternSyntax { Expression: LiteralExpressionSyntax lit }
+                    when lit.IsKind(SyntaxKind.NullLiteralExpression):
+                    matched = lhsValue is null or "null";
+                    return true;
+
+                // x is not <pattern>
+                case UnaryPatternSyntax { OperatorToken.Text: "not" } notPattern:
+                    if (!TryMatchPattern(notPattern.Pattern, lhsValue, out var inner))
+                        return false;
+                    matched = !inner;
+                    return true;
+
+                // x is { Length: > 0 }, etc.
+                case RecursivePatternSyntax recursive:
+                {
+                    // We only handle simple property sub-patterns against known string values.
+                    foreach (var subPattern in recursive.PropertyPatternClause?.Subpatterns ?? default)
+                    {
+                        var propName = subPattern.NameColon?.Name.Identifier.Text
+                                       ?? subPattern.ExpressionColon?.Expression.ToString();
+                        if (propName is null) return false;
+
+                        // For now only handle the `Length` property on strings.
+                        if (propName != "Length") return false;
+                        if (lhsValue is null or "null")
+                        {
+                            // null has no Length — treat length as 0
+                            if (!TryMatchPattern(subPattern.Pattern, "0", out var subResult))
+                                return false;
+                            matched = subResult;
+                        }
+                        else
+                        {
+                            // Represent the length as a string so relational patterns can compare it.
+                            var lengthStr = lhsValue.Length.ToString();
+                            if (!TryMatchPattern(subPattern.Pattern, lengthStr, out var subResult))
+                                return false;
+                            matched = subResult;
+                        }
+                    }
+                    return true;
+                }
+
+                // x is > 0, x is >= 1, etc.
+                case RelationalPatternSyntax relational:
+                {
+                    if (lhsValue is null) return false;
+                    if (!int.TryParse(lhsValue, out var lhsInt)) return false;
+                    if (!int.TryParse(relational.Expression.ToString(), out var rhsInt)) return false;
+                    matched = relational.OperatorToken.Text switch
+                    {
+                        ">" => lhsInt > rhsInt,
+                        ">=" => lhsInt >= rhsInt,
+                        "<" => lhsInt < rhsInt,
+                        "<=" => lhsInt <= rhsInt,
+                        _ => false
+                    };
+                    return true;
+                }
+
+                default:
+                    return false;
+            }
+        }
+    }
+
     [return: NotNullIfNotNull(nameof(value))]
     private static string? PreserveRelativeIndent(string? value)
     {
@@ -902,7 +1027,7 @@ public sealed class RawSqlGenerator : IIncrementalGenerator
             for (var i = 0; i < lines.Length; i++)
             {
                 if (lines[i].Length >= minIndent)
-                    lines[i] = lines[i].Substring(minIndent);
+                    lines[i] = lines[i][minIndent..];
             }
         }
 

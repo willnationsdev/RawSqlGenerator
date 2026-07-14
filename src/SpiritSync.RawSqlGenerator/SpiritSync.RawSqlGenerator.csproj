@@ -9,6 +9,7 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <VersionPrefix>0.1.0</VersionPrefix>
     <Authors>willnationsdev</Authors>
+    <RootNamespace>SpiritSync.Generators</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

@@ -8,7 +8,7 @@ namespace SpiritSync.RawSqlGenerator;
 // Original source:
 // https://github.com/CommunityToolkit/dotnet/blob/main/src/CommunityToolkit.Mvvm.SourceGenerators/Helpers/EquatableArray%7BT%7D.cs
  
-public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>
+internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>
 	where T : IEquatable<T>
 {
 	private readonly T[]? _data;
@@ -64,8 +64,14 @@ public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnume
 
 public static class EquatableArrayExtensions
 {
-	public static EquatableArray<T> ToEquatableArray<T>(this T[] array) where T : IEquatable<T> => new(array);
+	extension<T>(T[] array) where T : IEquatable<T>
+	{
+		internal EquatableArray<T> ToEquatableArray() => new(array);
+	}
 
-	public static EquatableArray<T> ToEquatableArray<T>(this IEnumerable<T> source) where T : IEquatable<T> =>
-		source.ToArray().ToEquatableArray();
+	extension<T>(IEnumerable<T> source) where T : IEquatable<T>
+	{
+		internal EquatableArray<T> ToEquatableArray() =>
+			source.ToArray().ToEquatableArray();
+	}
 }
