@@ -41,10 +41,8 @@ public partial class UserStore
             """;
 
         // Assign generated constant as SQL text to execute.
-        var cmd = connection.CreateCommand()
-        {
-            CommandText = GetUsersByEmailRawSql,
-        };
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = GetUsersByEmailRawSql;
 
         // ...setup, execution, and return omitted for brevity.
     }
@@ -61,10 +59,8 @@ public partial class UserStore
             WHERE u.username = name:
             """;
 
-        var cmd = connection.CreateCommand()
-        {
-            CommandText = GetUsersByNameRawSql,
-        };
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = GetUsersByNameRawSql;
 
         // etc.
     }
@@ -245,10 +241,6 @@ public partial class UserStore
         await using var connection = CreateConnection();
 
         var emailsJson = JsonSerializer.Serialize(emails);
-        var parameters = new List<OracleParameter>()
-        {
-            new(nameof(emailsJson), emailsJson),
-        };
 
         var sql = $"""
             WITH {SqlUtil.JsonArrayIdListCte("emails_list", nameof(emailsJson), "email", true)}
@@ -258,10 +250,10 @@ public partial class UserStore
             WHERE EXISTS (SELECT 1 FROM emails_list e WHERE e.email = u.email)
             """;
 
-        var cmd = connection.CreateCommand()
-        {
-            CommandText = FindUsersByEmailRawSql,
-        };
+        var cmd = connection.CreateCommand();
+        cmd.BindByName = true;
+        cmd.CommandText = FindUsersByEmailRawSql;
+        cmd.Parameters.Add(new OracleParameter(nameof(emailsJson), emailsJson));
 
         // omit
     }
