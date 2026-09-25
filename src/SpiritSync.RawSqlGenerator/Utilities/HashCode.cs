@@ -1,4 +1,4 @@
-﻿namespace SpiritSync.RawSqlGenerator;
+﻿namespace SpiritSync.Generators.Utilities;
 
 /// <summary>
 /// Minimal HashCode helper for netstandard2.0.
@@ -52,6 +52,27 @@ internal struct HashCode
         hc.Add(value1);
         hc.Add(value2);
         hc.Add(value3);
+        return hc.ToHashCode();
+    }
+
+    public static int Combine<T1, T2, T3, T4>(T1? value1, T2? value2, T3? value3, T4? value4)
+    {
+        var hc = new HashCode();
+        hc.Add(value1);
+        hc.Add(value2);
+        hc.Add(value3);
+        hc.Add(value4);
+        return hc.ToHashCode();
+    }
+
+    public static int Combine<T1, T2, T3, T4, T5>(T1? value1, T2? value2, T3? value3, T4? value4, T5? value5)
+    {
+        var hc = new HashCode();
+        hc.Add(value1);
+        hc.Add(value2);
+        hc.Add(value3);
+        hc.Add(value4);
+        hc.Add(value5);
         return hc.ToHashCode();
     }
 }

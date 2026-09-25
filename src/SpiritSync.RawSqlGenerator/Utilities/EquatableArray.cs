@@ -1,9 +1,10 @@
 ﻿// ReSharper disable MemberCanBePrivate.Global
+
 using System.Collections;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
- 
-namespace SpiritSync.RawSqlGenerator;
+
+namespace SpiritSync.Generators.Utilities;
  
 // Original source:
 // https://github.com/CommunityToolkit/dotnet/blob/main/src/CommunityToolkit.Mvvm.SourceGenerators/Helpers/EquatableArray%7BT%7D.cs

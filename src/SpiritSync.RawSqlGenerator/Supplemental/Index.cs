@@ -118,7 +118,7 @@ namespace System
 
         /// <summary>Indicates whether the current Index object is equal to another object of the same type.</summary>
         /// <param name="value">An object to compare with this object</param>
-        public override bool Equals([global::System.Diagnostics.CodeAnalysis.NotNullWhen(true)] object? value) => value is global::System.Index && _value == ((global::System.Index)value)._value;
+        public override bool Equals([global::SpiritSync.Generators.Supplemental.NotNullWhenAttribute(true)] object? value) => value is global::System.Index && _value == ((global::System.Index)value)._value;
 
         /// <summary>Indicates whether the current Index object is equal to another Index object.</summary>
         /// <param name="other">An object to compare with this object</param>
@@ -146,7 +146,7 @@ namespace System
 
         private static class ThrowHelper
         {
-            [global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+            [global::SpiritSync.Generators.Supplemental.DoesNotReturnAttribute]
             public static void ThrowValueArgumentOutOfRange_NeedNonNegNumException()
             {
                 throw new global::System.ArgumentOutOfRangeException("value", "Non-negative number required.");

@@ -36,7 +36,7 @@ namespace System
 
         /// <summary>Indicates whether the current Range object is equal to another object of the same type.</summary>
         /// <param name="value">An object to compare with this object</param>
-        public override bool Equals([global::System.Diagnostics.CodeAnalysis.NotNullWhen(true)] object? value) =>
+        public override bool Equals([global::SpiritSync.Generators.Supplemental.NotNullWhenAttribute(true)] object? value) =>
             value is global::System.Range r &&
             r.Start.Equals(Start) &&
             r.End.Equals(End);
@@ -109,7 +109,7 @@ namespace System
 
         private static class ThrowHelper
         {
-            [global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+            [global::SpiritSync.Generators.Supplemental.DoesNotReturnAttribute]
             public static void ThrowArgumentOutOfRangeException()
             {
                 throw new global::System.ArgumentOutOfRangeException("length");

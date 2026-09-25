@@ -3,7 +3,7 @@
 
 using System.ComponentModel;
 
-namespace System.Runtime.CompilerServices
+namespace SpiritSync.Generators.Supplemental
 {
     /// <summary>
     /// Reserved to be used by the compiler for tracking metadata.
